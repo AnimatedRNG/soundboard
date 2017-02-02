@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import simpleaudio as sa
+import pyglet
 from subprocess import call
 from collections import namedtuple
 from os import listdir
@@ -10,16 +10,21 @@ from sys import exit
 
 class Song(object):
 
-    def __init__(self, name, path):
+    def __init__(self, name, path, loop=False):
         self.name = name
         self.path = path
-        self.obj = sa.WaveObject.from_wave_file(path)
+        snd = pyglet.media.load(path)
+        self.obj = pyglet.media.SourceGroup(snd.audio_format, None)
+        self.obj.loop = loop
+        self.obj.queue(snd)
+        self.p = pyglet.media.Player()
+        self.p.queue(self.obj)
 
     def play(self):
-        self.play_obj = self.obj.play()
+        self.p.play()
 
     def stop(self):
-        self.play_obj.stop()
+        self.p.pause()
 
     def __repr__(self):
         return self.name
@@ -92,10 +97,25 @@ def getChar():
 
 
 def get_ui_choice(current_dir, currently_playing):
+    def handle_song(song):
+        if song in currently_playing:
+            # stop playing the song
+            currently_playing.remove(song)
+            song.stop()
+        else:
+            # start playing the song
+            currently_playing.add(song)
+            song.play()
+
     if current_dir == None:
         dirs = listdir('audio')
-        return (join('audio', Menu(dirs, currently_playing).run()),
-                currently_playing)
+        result = Menu(dirs, currently_playing).run()
+        if isinstance(result, Song):
+            handle_song(result)
+            return (None, currently_playing)
+        else:
+            return (join('audio', result),
+                    currently_playing)
     else:
         files = []
         for name in listdir(current_dir):
@@ -105,14 +125,7 @@ def get_ui_choice(current_dir, currently_playing):
         if song == 'Go back':
             return (None, currently_playing)
         else:
-            if song in currently_playing:
-                # stop playing the song
-                currently_playing.remove(song)
-                song.stop()
-            else:
-                # start playing the song
-                currently_playing.add(song)
-                song.play()
+            handle_song(song)
             return (current_dir, currently_playing)
 
 if __name__ == '__main__':
@@ -120,5 +133,5 @@ if __name__ == '__main__':
     current_dir = None
     currently_playing = set()
     while True:
-        current_dir, currently_playing = \
-            get_ui_choice(current_dir, currently_playing)
+        current_dir, currently_playing = get_ui_choice(
+            current_dir, currently_playing)
