@@ -6,6 +6,7 @@ from collections import namedtuple
 from os import listdir
 from os.path import join
 from sys import exit
+from time import time
 
 
 class Song(object):
@@ -13,12 +14,19 @@ class Song(object):
     def __init__(self, name, path, loop=False):
         self.name = name
         self.path = path
-        snd = pyglet.media.load(path)
-        self.obj = pyglet.media.SourceGroup(snd.audio_format, None)
+        self.snd = pyglet.media.load(path)
+        self.obj = pyglet.media.SourceGroup(self.snd.audio_format, None)
         self.obj.loop = loop
-        self.obj.queue(snd)
+        self.obj.queue(self.snd)
         self.p = pyglet.media.Player()
         self.p.queue(self.obj)
+        self.timestamp = time()
+
+    def is_playing(self):
+        if time() - self.timestamp > self.snd.duration:
+            return False
+        else:
+            return True
 
     def play(self):
         self.p.play()
@@ -27,7 +35,7 @@ class Song(object):
         self.p.pause()
 
     def __repr__(self):
-        return self.name
+        return self.name + (" (Loop)" if self.obj.loop else "")
 
 
 class Menu:
@@ -99,9 +107,19 @@ def getChar():
 def get_ui_choice(current_dir, currently_playing):
     def handle_song(song):
         if song in currently_playing:
-            # stop playing the song
-            currently_playing.remove(song)
-            song.stop()
+            currently_looping = song.obj.loop
+            loop_action = "Loop" if not song.obj.loop else "Stop Looping"
+            loop_menu = Menu([loop_action, "Stop"], []).run()
+            if loop_menu == 'Stop':
+                # stop playing the song
+                currently_playing.remove(song)
+                song.stop()
+            elif loop_menu == "Stop Looping":
+                song.obj.loop = False
+            elif loop_menu == "Loop":
+                song.obj.loop = True
+            else:
+                assert False
         else:
             # start playing the song
             currently_playing.add(song)
@@ -135,3 +153,5 @@ if __name__ == '__main__':
     while True:
         current_dir, currently_playing = get_ui_choice(
             current_dir, currently_playing)
+        currently_playing = set(
+            song for song in currently_playing if song.is_playing())
